@@ -15,7 +15,6 @@ dependencies:
   
   oauth2restclient:
     path: ../oauth2restclient
-
   onedrive_api:
     path: ../onedrive_api
   dropbox_api:
