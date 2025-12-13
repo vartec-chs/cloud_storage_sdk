@@ -1,39 +1,114 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# cloud_storage_all
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages).
+Универсальный фасад для популярных облачных дисков (Dropbox, Google Drive,
+OneDrive, Yandex.Disk). Предоставляет единый интерфейс `CloudStorageApi` и
+адаптеры для каждого провайдера, чтобы упростить типовые операции: листинг
+папок, загрузка/скачивание файлов, создание папок, удаление, перемещение и
+копирование.
 
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages).
--->
+Этот пакет полезен, когда приложение должно работать с несколькими провайдерами
+через единый код, не зависящий от специфики API каждого сервиса.
 
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+## Возможности
 
-## Features
+- Единый интерфейс `CloudStorageApi` и модели: `CloudItem`, `CloudRef`, `CloudPage`.
+- Адаптеры: `DropboxAdapter`, `GoogleDriveAdapter`, `OneDriveAdapter`, `YandexDriveAdapter`.
+- Поддержка потоковой загрузки/скачивания и отслеживания прогресса через
+	`OAuth2ProgressCallback` из `oauth2restclient`.
+- Согласованная пагинация (`CloudPage.nextToken`).
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
+## Быстрый старт
 
-## Getting started
+Добавьте в зависимости рабочей области (в рамках mono-repo уже подключено через `path`).
 
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
-
-## Usage
-
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder.
+Пример использования (предполагается, что у вас уже есть авторизованный
+клиент провайдера). Можно передавать как готовый API (например `DropboxApi`),
+так и только `OAuth2RestClient` через удобные фабрики `*Client(...)`:
 
 ```dart
-const like = 'sample';
+import 'package:cloud_storage_all/cloud_storage_all.dart';
+import 'package:dropbox_api/dropbox_api.dart' as dropbox;
+
+void example(dropbox.DropboxApi dropboxApi) async {
+	final storage = CloudStorage.dropbox(dropboxApi);
+
+	// Список элементов в папке
+	final page = await storage.api.listChildren(CloudPath('/Documents'));
+	for (final item in page.items) {
+		print('${item.name}  folder=${item.isFolder}  ref=${item.ref}');
+	}
+
+	// Загрузка файла (получаем поток байтов)
+	final stream = await storage.api.download(CloudPath('/Documents/file.txt'));
+	await for (final chunk in stream) {
+		// записываем в локальный файл или обрабатываем
+	}
+
+	// Загрузка файла на диск
+	final fileStream = Stream.fromIterable([[1,2,3]]);
+	final uploaded = await storage.api.upload(
+		CloudPath('/Documents'),
+		'hello.txt',
+		fileStream,
+		contentLength: 3,
+	);
+
+	// Создать папку
+	await storage.api.createFolder(CloudPath('/Documents'), 'new-folder');
+
+	// Удалить
+	await storage.api.delete(CloudPath('/Documents/old.txt'));
+}
+
+void example2(OAuth2RestClient client) async {
+	// Создаст DropboxRestApi(client) внутри
+	final storage = CloudStorage.dropboxClient(client);
+	await storage.api.listChildren(CloudPath('/'));
+}
 ```
 
-## Additional information
+### Примечания по провайдерам
 
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+- Google Drive использует идентификаторы (`CloudId`) для обращений к файлам и
+	папкам. При вызове `upload` для Google необходимо передавать `contentLength`.
+- Dropbox/OneDrive/Yandex — преимущественно работают с путями (`CloudPath`).
+- Адаптеры конвертируют нативные модели провайдеров в `CloudItem`.
+
+## Детали API
+
+- `CloudRef` — абстракция ссылки на объект в облаке: `CloudPath` (путь) или
+	`CloudId` (идентификатор).
+- `CloudItem` — информация об элементе (имя, папка/файл, размер, даты).
+- `CloudPage<T>` — список элементов с `nextToken` для последующей пагинации.
+
+Если требуется доступ к специфичным методам провайдера (например, публикация
+ресурса в Yandex.Disk), используйте нативный клиент напрямую — он экспортируется
+из пакета (`package:yandex_drive_api/yandex_drive_api.dart` и т.д.).
+
+## Примеры
+
+Пример изменения имени при копировании (Google Drive требует дополнительных
+запросов, пример в адаптере):
+
+```dart
+// copy + переименование
+await storage.api.copy(fromRef, toFolderRef, newName: 'new-name.ext');
+```
+
+## Вклад и тесты
+
+PR и issue приветствуются. Запустите анализатор и тесты в корне mono-repo:
+
+```bash
+melos bootstrap
+melos run analyze
+melos test
+```
+
+## Лицензия
+
+Этот пакет распространяется под лицензией проекта (см. корневой `LICENSE`).
+
+---
+Если хотите, могу добавить мини-пример в `example/` и тесты, показывающие
+основные операции через каждый адаптер.
