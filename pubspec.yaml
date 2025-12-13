@@ -7,12 +7,13 @@ environment:
   flutter: ">=1.17.0"
 
 workspace:
+  - packages/cloud_storage_all
   - packages/oauth2restclient
   - packages/onedrive_api
   - packages/dropbox_api
   - packages/google_drive_api
   - packages/yandex_drive_api
-  - packages/cloud_storage_all
+  
 
 dependencies:
   flutter:
