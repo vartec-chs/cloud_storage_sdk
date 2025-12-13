@@ -1,30 +1,33 @@
-name: cloud_storage_sdk
+name: cloud_storage_all
 description: "A new Flutter package project."
 version: 0.0.1
 
-
+resolution: workspace
 
 environment:
   sdk: ^3.10.3
   flutter: ">=1.17.0"
 
-workspace:
-  - packages/oauth2restclient
-  - packages/onedrive_api
-  - packages/dropbox_api
-  - packages/google_drive_api
-  - packages/yandex_drive_api
-  - packages/cloud_storage_all
-
 dependencies:
   flutter:
     sdk: flutter
+  
+  oauth2restclient:
+    path: ../oauth2restclient
+
+  onedrive_api:
+    path: ../onedrive_api
+  dropbox_api:
+    path: ../dropbox_api
+  google_drive_api:
+    path: ../google_drive_api
+  yandex_drive_api:
+    path: ../yandex_drive_api
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  melos: ^7.3.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
