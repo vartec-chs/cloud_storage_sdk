@@ -278,7 +278,7 @@ packages:
       path: "../../oauth2restclient"
       relative: true
     source: path
-    version: "0.0.13"
+    version: "0.0.15"
   onedrive_api:
     dependency: "direct main"
     description:
