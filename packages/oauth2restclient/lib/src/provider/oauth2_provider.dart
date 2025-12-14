@@ -11,11 +11,13 @@ import '../token/oauth2_token.dart';
 import 'pkce.dart';
 
 HttpServer? _server;
+StreamSubscription? _linkSubscription;
 
 abstract interface class OAuth2Provider {
   String get name;
   String get authScheme;
-  Future<OAuth2Token?> login();
+  Future<OAuth2Token?> login({void Function(String error)? onError});
+  void cancelLogin();
   Future<String?> exchangeCode(String? code);
   Future<OAuth2Token?> refreshToken(String? refreshToken);
   Future<Map<String, dynamic>?> getUserInfo(String accessToken);
@@ -35,6 +37,8 @@ class OAuth2ProviderF implements OAuth2Provider {
   final String authScheme;
 
   String? codeVerifier;
+  bool _isCancelled = false;
+  void Function(String error)? _onError;
 
   @override
   final String name;
@@ -69,13 +73,30 @@ class OAuth2ProviderF implements OAuth2Provider {
   }
 
   @override
-  Future<OAuth2Token?> login() async {
+  Future<OAuth2Token?> login({void Function(String error)? onError}) async {
+    _isCancelled = false;
+    _onError = onError;
     if (Platform.isAndroid || Platform.isIOS) return loginFromMobile();
     return loginFromDesktop();
   }
 
+  @override
+  void cancelLogin() {
+    _isCancelled = true;
+    _server?.close();
+    _server = null;
+    _linkSubscription?.cancel();
+    _linkSubscription = null;
+    _onError?.call('Login cancelled by user');
+    _onError = null;
+  }
+
   Future<OAuth2Token?> loginFromDesktop() async {
     try {
+      if (_isCancelled) {
+        return null;
+      }
+
       var uri = Uri.parse(_authUrl);
       await launchUrl(uri); // ✅ 자동으로 브라우저 실행
 
@@ -88,6 +109,12 @@ class OAuth2ProviderF implements OAuth2Provider {
       _server = await HttpServer.bind(host, port);
 
       await for (final request in _server!) {
+        if (_isCancelled) {
+          request.response.statusCode = HttpStatus.serviceUnavailable;
+          await request.response.close();
+          break;
+        }
+
         // callback 경로 확인
         if (request.uri.path == path) {
           // 코드 파라미터 추출
@@ -95,6 +122,7 @@ class OAuth2ProviderF implements OAuth2Provider {
           final response = await exchangeCode(code);
 
           if (response == null) {
+            _onError?.call('Failed to exchange authorization code');
             request.response.headers.contentType = ContentType.html;
             request.response.write('''
               <!DOCTYPE html>
@@ -250,6 +278,9 @@ class OAuth2ProviderF implements OAuth2Provider {
       }
     } catch (e) {
       debugPrint(e.toString());
+      if (!_isCancelled) {
+        _onError?.call('Login error: ${e.toString()}');
+      }
     } finally {
       await _server?.close();
       _server = null;
@@ -259,31 +290,63 @@ class OAuth2ProviderF implements OAuth2Provider {
   }
 
   Future<OAuth2Token?> loginFromMobile() async {
-    var uri = Uri.parse(_authUrl);
-    if (!await canLaunchUrl(uri)) return null;
-
-    Completer<String?> completer = Completer();
-    final appLinks = AppLinks(); // AppLinks is singleton
-    final sub = appLinks.uriLinkStream.listen((uri) async {
-      String? response;
-      var code = uri.queryParameters["code"];
-      try {
-        response = await exchangeCode(code);
-      } finally {
-        if (!completer.isCompleted) {
-          completer.complete(response);
-        }
+    try {
+      if (_isCancelled) {
+        return null;
       }
-    });
 
-    await launchUrl(uri); // ✅ 자동으로 브라우저 실행
-    var response = await completer.future;
-    sub.cancel();
-    closeInAppWebView();
+      var uri = Uri.parse(_authUrl);
+      if (!await canLaunchUrl(uri)) {
+        _onError?.call('Cannot launch browser for authentication');
+        return null;
+      }
 
-    if (response == null) return null;
+      Completer<String?> completer = Completer();
+      final appLinks = AppLinks(); // AppLinks is singleton
+      _linkSubscription = appLinks.uriLinkStream.listen((uri) async {
+        if (_isCancelled) {
+          if (!completer.isCompleted) {
+            completer.complete(null);
+          }
+          return;
+        }
 
-    return OAuth2TokenF.fromJsonString(response);
+        String? response;
+        var code = uri.queryParameters["code"];
+        try {
+          response = await exchangeCode(code);
+          if (response == null) {
+            _onError?.call('Failed to exchange authorization code');
+          }
+        } catch (e) {
+          _onError?.call('Exchange code error: ${e.toString()}');
+        } finally {
+          if (!completer.isCompleted) {
+            completer.complete(response);
+          }
+        }
+      });
+
+      await launchUrl(uri); // ✅ 자동으로 브라우저 실행
+      var response = await completer.future;
+      _linkSubscription?.cancel();
+      _linkSubscription = null;
+      closeInAppWebView();
+
+      if (_isCancelled) {
+        return null;
+      }
+
+      if (response == null) return null;
+
+      return OAuth2TokenF.fromJsonString(response);
+    } catch (e) {
+      debugPrint('loginFromMobile error: $e');
+      if (!_isCancelled) {
+        _onError?.call('Login error: ${e.toString()}');
+      }
+      return null;
+    }
   }
 
   @override
