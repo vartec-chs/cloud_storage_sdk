@@ -30,12 +30,11 @@ class OAuth2TokenF implements OAuth2Token {
   void _parseToken(Map<String, dynamic> json) {
     if (!json.containsKey("expiry")) {
       if (json.containsKey("expires_in")) {
-        json["expiry"] =
-            DateTime.now()
-                .toUtc()
-                .add(Duration(seconds: json["expires_in"]))
-                .subtract(Duration(minutes: 5))
-                .toIso8601String();
+        json["expiry"] = DateTime.now()
+            .toUtc()
+            .add(Duration(seconds: json["expires_in"]))
+            .subtract(Duration(minutes: 5))
+            .toIso8601String();
       } else {
         json["expiry"] = "9999-12-31T23:59:59.999Z";
       }
@@ -43,15 +42,16 @@ class OAuth2TokenF implements OAuth2Token {
 
     if (!json.containsKey("refresh_token_expiry")) {
       if (json.containsKey("refresh_token_expires_in")) {
-        json["refresh_token_expiry"] =
-            DateTime.now()
-                .toUtc()
-                .add(Duration(seconds: json["refresh_token_expires_in"]))
-                .subtract(Duration(minutes: 5))
-                .toIso8601String();
+        json["refresh_token_expiry"] = DateTime.now()
+            .toUtc()
+            .add(Duration(seconds: json["refresh_token_expires_in"]))
+            .subtract(Duration(minutes: 5))
+            .toIso8601String();
       } else {
-        json["refresh_token_expiry"] =
-            DateTime.now().toUtc().add(Duration(days: 7)).toIso8601String();
+        json["refresh_token_expiry"] = DateTime.now()
+            .toUtc()
+            .add(Duration(days: 7))
+            .toIso8601String();
       }
     }
   }

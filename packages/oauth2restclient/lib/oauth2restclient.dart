@@ -4,6 +4,8 @@ export 'src/oauth2_account.dart';
 export 'src/oauth2_cancel_token.dart';
 export 'src/provider/dropbox.dart';
 export 'src/provider/google.dart';
+export 'src/provider/oauth2_provider.dart';
+export 'src/provider/provider_enum.dart';
 export 'src/provider/microsoft.dart';
 export 'src/provider/yandex.dart';
 export 'src/rest_client/oauth2_multipart.dart';
