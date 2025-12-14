@@ -1,6 +1,6 @@
 name: cloud_storage_sdk
 description: "Cloud Storage SDK supporting multiple providers."
-version: 1.0.3
+version: 1.0.4
 
 environment:
   sdk: '>=3.10.0 <4.0.0'

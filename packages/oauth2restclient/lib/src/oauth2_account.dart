@@ -52,8 +52,9 @@ class OAuth2Account {
   }
 
   Future<List<(String, String)>> allAccounts({String service = ""}) async {
-    var prefix =
-        service.isEmpty ? "$appPrefix-$tokenPrefix-" : keyFor(service, "");
+    var prefix = service.isEmpty
+        ? "$appPrefix-$tokenPrefix-"
+        : keyFor(service, "");
     final all = await _tokenStorage.loadAll(keyPrefix: prefix);
 
     return all.keys
@@ -89,11 +90,14 @@ class OAuth2Account {
   }
 
   /// Новый вход пользователя
-  Future<OAuth2Token?> newLogin(String service) async {
+  Future<OAuth2Token?> newLogin(
+    String service, {
+    void Function(String error)? onError,
+  }) async {
     var provider = getProvider(service);
     if (provider == null) throw Exception("can't find provider '$service'");
 
-    var token = await provider.login();
+    var token = await provider.login(onError: onError);
     if (token != null) {
       token.provider = service;
 
@@ -111,21 +115,28 @@ class OAuth2Account {
   }
 
   /// Автоматический вход, если токен истек, выполняется повторный вход
-  Future<OAuth2Token?> tryAutoLogin(String service, String userName) async {
+  Future<OAuth2Token?> tryAutoLogin(
+    String service,
+    String userName, {
+    void Function(String error)? onError,
+  }) async {
     var token = await loadAccount(service, userName);
     if (token?.timeToLogin ?? false) {
-      token = await forceRelogin(token!);
+      token = await forceRelogin(token!, onError: onError);
     }
     return token;
   }
 
-  Future<OAuth2Token?> forceRelogin(OAuth2Token expiredToken) async {
+  Future<OAuth2Token?> forceRelogin(
+    OAuth2Token expiredToken, {
+    void Function(String error)? onError,
+  }) async {
     var provider = getProvider(expiredToken.provider);
     if (provider == null) {
       throw Exception("can't find provider for '{$expiredToken.provider}'");
     }
 
-    var token = await provider.login();
+    var token = await provider.login(onError: onError);
     if (token != null) {
       token.provider = provider.name;
 
